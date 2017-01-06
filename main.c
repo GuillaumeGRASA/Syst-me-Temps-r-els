@@ -61,12 +61,47 @@ void initStruct(void) {
         rt_printf("Error mutex create: %s\n", strerror(-err));
         exit(EXIT_FAILURE);
     }
+ 	 if (err = rt_mutex_create(&mutexCompteurRobot, NULL)) {
+        rt_printf("Error mutex create: %s\n", strerror(-err));
+        exit(EXIT_FAILURE);
+    }
+
+ if (err = rt_mutex_create(&mutexTypeCalibration, NULL)) {
+        rt_printf("Error mutex create: %s\n", strerror(-err));
+        exit(EXIT_FAILURE);
+    }
+
+ if (err = rt_mutex_create(&mutexCalibration, NULL)) {
+        rt_printf("Error mutex create: %s\n", strerror(-err));
+        exit(EXIT_FAILURE);
+    }
+
+ if (err = rt_mutex_create(&mutexAreneSauvegarde, NULL)) {
+        rt_printf("Error mutex create: %s\n", strerror(-err));
+        exit(EXIT_FAILURE);
+    }
+
+ if (err = rt_mutex_create(&mutexCalculPosition, NULL)) {
+        rt_printf("Error mutex create: %s\n", strerror(-err));
+        exit(EXIT_FAILURE);
+    }
+ if (err = rt_mutex_create(&mutexCommCamera, NULL)) {
+        rt_printf("Error mutex create: %s\n", strerror(-err));
+        exit(EXIT_FAILURE);
+    }
 
     /* Creation du semaphore */
     if (err = rt_sem_create(&semConnecterRobot, NULL, 0, S_FIFO)) {
         rt_printf("Error semaphore create: %s\n", strerror(-err));
         exit(EXIT_FAILURE);
     }
+
+    if (err = rt_sem_create(&semCalibrationArene, NULL, 0, S_FIFO)) {
+        rt_printf("Error semaphore create: %s\n", strerror(-err));
+        exit(EXIT_FAILURE);
+    }
+
+
 
     /* Creation des taches */
     if (err = rt_task_create(&tServeur, NULL, 0, PRIORITY_TSERVEUR, 0)) {
@@ -86,6 +121,26 @@ void initStruct(void) {
         exit(EXIT_FAILURE);
     }
 
+    if (err = rt_task_create(&tcalibration, NULL, 0, PRIORITY_TCALIBRATION, 0)) {
+        rt_printf("Error task create: %s\n", strerror(-err));
+        exit(EXIT_FAILURE);
+    }
+
+    if (err = rt_task_create(&ttraitementImage, NULL, 0, PRIORITY_TTRAITEMENTIMAGE, 0)) {
+        rt_printf("Error task create: %s\n", strerror(-err));
+        exit(EXIT_FAILURE);
+    }
+
+    if (err = rt_task_create(&treloadWatchdog, NULL, 0, PRIORITY_TRELOADWATCHDOG, 0)) {
+        rt_printf("Error task create: %s\n", strerror(-err));
+        exit(EXIT_FAILURE);
+    }
+
+    if (err = rt_task_create(&tetatBatterie, NULL, 0, PRIORITY_TETATBATTERIE, 0)) {
+        rt_printf("Error task create: %s\n", strerror(-err));
+        exit(EXIT_FAILURE);
+    }
+
     /* Creation des files de messages */
     if (err = rt_queue_create(&queueMsgGUI, "toto", MSG_QUEUE_SIZE*sizeof(DMessage), MSG_QUEUE_SIZE, Q_FIFO)){
         rt_printf("Error msg queue create: %s\n", strerror(-err));
@@ -96,6 +151,7 @@ void initStruct(void) {
     robot = d_new_robot();
     move = d_new_movement();
     serveur = d_new_server();
+	 camera=d_new_camera();
 }
 
 void startTasks() {
@@ -117,10 +173,34 @@ void startTasks() {
         exit(EXIT_FAILURE);
     }
 
+    if (err = rt_task_start(&tcalibration, &calibration, NULL)) {
+        rt_printf("Error task start: %s\n", strerror(-err));
+        exit(EXIT_FAILURE);
+    }
+
+    if (err = rt_task_start(&ttraitementImage, &traitementImage, NULL)) {
+        rt_printf("Error task start: %s\n", strerror(-err));
+        exit(EXIT_FAILURE);
+    }
+
+    if (err = rt_task_start(&treloadWatchdog, &reloadWatchdog, NULL)) {
+        rt_printf("Error task start: %s\n", strerror(-err));
+        exit(EXIT_FAILURE);
+    }
+
+    if (err = rt_task_start(&tetatBatterie, &etatBatterie, NULL)) {
+        rt_printf("Error task start: %s\n", strerror(-err));
+        exit(EXIT_FAILURE);
+    }
+
 }
 
 void deleteTasks() {
     rt_task_delete(&tServeur);
     rt_task_delete(&tconnect);
     rt_task_delete(&tmove);
+	 rt_task_delete(&tcalibration);
+	 rt_task_delete(&ttraitementImage);
+	 rt_task_delete(&treloadWatchdog);
+	 tr_task_delete(&tetatBatterie);
 }
