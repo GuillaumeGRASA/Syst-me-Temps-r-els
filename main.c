@@ -96,6 +96,11 @@ void initStruct(void) {
         exit(EXIT_FAILURE);
     }
 
+	  if (err = rt_sem_create(&semConnecterCamera, NULL, 0, S_FIFO)) {
+        rt_printf("Error semaphore create: %s\n", strerror(-err));
+        exit(EXIT_FAILURE);
+    }
+
     if (err = rt_sem_create(&semCalibrationArene, NULL, 0, S_FIFO)) {
         rt_printf("Error semaphore create: %s\n", strerror(-err));
         exit(EXIT_FAILURE);
@@ -121,7 +126,7 @@ void initStruct(void) {
         exit(EXIT_FAILURE);
     }
 
-    if (err = rt_task_create(&tcalibration, NULL, 0, PRIORITY_TCALIBRATION, 0)) {
+    if (err = rt_task_create(&tcalibrationArene, NULL, 0, PRIORITY_TCALIBRATION, 0)) {
         rt_printf("Error task create: %s\n", strerror(-err));
         exit(EXIT_FAILURE);
     }
@@ -173,7 +178,7 @@ void startTasks() {
         exit(EXIT_FAILURE);
     }
 
-    if (err = rt_task_start(&tcalibration, &calibration, NULL)) {
+    if (err = rt_task_start(&tcalibrationArene, &calibrationArene, NULL)) {
         rt_printf("Error task start: %s\n", strerror(-err));
         exit(EXIT_FAILURE);
     }
@@ -199,8 +204,8 @@ void deleteTasks() {
     rt_task_delete(&tServeur);
     rt_task_delete(&tconnect);
     rt_task_delete(&tmove);
-	 rt_task_delete(&tcalibration);
+	 rt_task_delete(&tcalibrationArene);
 	 rt_task_delete(&ttraitementImage);
 	 rt_task_delete(&treloadWatchdog);
-	 tr_task_delete(&tetatBatterie);
+	 rt_task_delete(&tetatBatterie);
 }

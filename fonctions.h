@@ -18,7 +18,7 @@ extern "C" {
         void communiquer(void *arg);
         void deplacer(void *arg);
         void envoyer(void *arg);
-		  void calibration(void *arg);
+		  void calibrationArene(void *arg);
 		  void traitementImage(void *arg);
 		  void reloadWatchdog(void *arg);
 		  void etatBatterie(void *arg);
