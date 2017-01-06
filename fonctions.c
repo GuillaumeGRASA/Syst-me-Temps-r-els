@@ -38,6 +38,7 @@ void connecter(void * arg) {
             status = robot->start_insecurely(robot);
             if (status == STATUS_OK){
                 rt_printf("tconnect : Robot démarrer\n");
+		rt_sem_v(&semWatchdog, TM_INFINITE);
             }
         }
 
@@ -173,4 +174,158 @@ int write_in_queue(RT_QUEUE *msgQueue, void * data, int size) {
     rt_queue_free(&queueMsgGUI, msg);
 
     return err;
+}
+
+void etatBatterie(void *arg){
+  
+  int status = 1; 
+  DMessage *message;
+  int etatBat;
+    
+  rt_printf("tmove : Debut de l'éxecution de periodique à 250ms\n");
+  rt_task_set_periodic(NULL, TM_NOW, 250000000);
+    
+  while(1){
+    /* Attente de l'activation périodique */
+    rt_task_wait_period(NULL);
+    rt_printf("tmove : Activation périodique\n");
+
+    rt_mutex_acquire(&mutexEtat, TM_INFINITE);
+    status = etatCommRobot;
+    rt_mutex_release(&mutexEtat);
+
+    if (status == STATUS_OK) {
+      status = d_robot_get_vbat(robot,&etatBat);
+      if(status == STATUS_OK){
+	rt_mutex_acquire(&mutexCompteurRobot, TM_INFINITE);
+	compteurRobot=0;
+	rt_mutex_release(&mutexCompteurRobot);
+	d_server_send(serveur,&etatBat);
+      }else{
+	rt_mutex_acquire(&mutexCompteurRobot, TM_INFINITE);
+	if(compteurRobot<3){
+	  compteurRobot++;
+	}else if(compteurRobot == 3){
+	  rt_mutex_acquire(&mutexEtat, TM_INFINITE);
+	  etatCommRobot = status;
+	  rt_mutex_release(&mutexEtat);
+
+	  message = d_new_message();
+	  message->put_state(message, status);
+
+	  rt_printf("tmove : Envoi message\n");
+	  if (write_in_queue(&queueMsgGUI, message, sizeof (DMessage)) < 0) {
+	    message->free(message);
+	  }
+	  compteurRobot=0;
+	}
+	rt_mutex_release(&mutexCompteurRobot);
+      }
+    }
+	
+  }
+}
+
+void reloadWatchdog(void * arg){
+  int status = 1; 
+  DMessage *message;
+  int etatBatterie;
+    
+  rt_printf("tmove : Debut de l'éxecution de periodique à 1s\n");
+  rt_task_set_periodic(NULL, TM_NOW, 1000000000);
+    
+  while(1){
+
+    /*Attente du sémaphore*/
+    rt_printf("tconnect : Attente du sémarphore semConnecterRobot\n");
+    rt_sem_p(&semWatchdog, TM_INFINITE);
+    rt_printf("tconnect : Ouverture de la communication avec le robot\n");
+
+    /* Attente de l'activation périodique */
+    rt_task_wait_period(NULL);
+    rt_printf("tmove : Activation périodique\n");
+
+    rt_mutex_acquire(&mutexEtat, TM_INFINITE);
+    status = etatCommRobot;
+    rt_mutex_release(&mutexEtat);
+
+    if (status == STATUS_OK) {
+      status=d_robot_reload_wdt(robot);
+      if(status == STATUS_OK){
+	rt_mutex_acquire(&mutexCompteurRobot, TM_INFINITE);
+	compteurRobot=0;
+	rt_mutex_release(&mutexCompteurRobot);
+      } else{
+	rt_mutex_acquire(&mutexCompteurRobot, TM_INFINITE);
+	if(compteurRobot<3){
+	  compteurRobot++;
+	}else if(compteurRobot == 3){
+	  rt_mutex_acquire(&mutexEtat, TM_INFINITE);
+	  etatCommRobot = status;
+	  rt_mutex_release(&mutexEtat);
+
+	  message = d_new_message();
+	  message->put_state(message, status);
+
+	  rt_printf("tmove : Envoi message\n");
+	  if (write_in_queue(&queueMsgGUI, message, sizeof (DMessage)) < 0) {
+	    message->free(message);
+	  }
+	  compteurRobot=0;
+	}
+	rt_mutex_release(&mutexCompteurRobot);
+      }
+    }
+  }
+}
+
+void traitement_image(){
+  
+  int status;
+  DMessage message = d_new_message();
+  status = camera->open(camera);
+
+  rt_printf("tmove : Debut de l'éxecution de periodique à 1s\n");
+  rt_task_set_periodic(NULL, TM_NOW, 600000000);
+
+  while(1){
+    /*Attente du sémaphore*/
+    rt_printf("tconnect : Attente du sémarphore semConnecterCamera\n");
+    rt_sem_p(&semConnecterCamera, TM_INFINITE);
+    rt_printf("tconnect : Ouverture de la communication avec la camera\n");
+    
+    while(1){
+      /* Attente de l'activation périodique */
+      rt_task_wait_period(NULL);
+      rt_printf("tmove : Activation périodique\n");
+
+      rt_mutex_acquire(&mutexCommCamera, TM_INFINITE);
+      status = etatCommCamera;
+      rt_mutex_release(&mutexCommCamera);
+
+      if (status == STATUS_OK) {
+	rt_mutex_acquire(&mutexCalibration, TM_INFINITE);
+	status = Calibation;
+	rt_mutex_release(&mutexCalibration);
+	if (status == STATUS_OK) {
+	  rt_mutex_acquire(&mutexCalculPosition, TM_INFINITE);
+	  status = calculPostion;
+	  rt_mutex_release(&mutexCalculPosition);
+	  if(status == 1) {
+	    /*Calcul position*/
+	   
+	  } else {
+	    d_camera_get_frame(camera,image);
+	    d_jpegimage_compress(jpegimage,image);
+	    d_message_put_jpeg_image(message,jpegimage);
+	    if (write_in_queue(&queueMsgGUI, message, sizeof (DMessage)) < 0) {
+            message->free(message);
+	    }
+	  }
+	} 
+      } else {
+	break;
+      }
+    }
+  }
 }
