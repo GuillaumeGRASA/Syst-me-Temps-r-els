@@ -68,6 +68,7 @@ connecter (void *arg)
             status = robot->start_insecurely(robot);
             if (status == STATUS_OK){
                 rt_printf("tconnect : Robot démarrer\n");
+		rt_sem_v(&semWatchdog, TM_INFINITE);    
             }
         }
 
