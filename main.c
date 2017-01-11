@@ -105,6 +105,11 @@ void initStruct(void) {
         rt_printf("Error semaphore create: %s\n", strerror(-err));
         exit(EXIT_FAILURE);
     }
+		
+    if (err = rt_sem_create(&semWatchdog, NULL, 0, S_FIFO)) {
+        rt_printf("Error semaphore create: %s\n", strerror(-err));
+        exit(EXIT_FAILURE);
+    }
 
 
 
@@ -157,6 +162,7 @@ void initStruct(void) {
     move = d_new_movement();
     serveur = d_new_server();
 	 camera=d_new_camera();
+	 batterie = d_new_battery();
 }
 
 void startTasks() {
