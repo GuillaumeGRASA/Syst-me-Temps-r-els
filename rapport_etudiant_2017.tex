@@ -23,8 +23,8 @@
 {\large version \today}\\
 ---\\
 }
-\author{\color{black}{ABDELMOUMEN Oussama ()} \\ {GRASA Guillaume ()}\\ {HELLO Anouk ()} \\ {PROUVOST Chloé ()} \\
-\color{blue}{Exemple : P.-E. Hladik (conception, robot, rédaction du compte-rendu)}
+\author{\color{black}
+{ABDELMOUMEN Oussama (Conception, code)} \\ {GRASA Guillaume (Conception, code)}\\ {HELLO Anouk (Conception, rédaction du compte-rendu, un peu de code)} \\ {PROUVOST Chloé (Conception, rédaction du compte-rendu, un peu de code)}
 }
 
 \begin{document}
@@ -156,7 +156,7 @@ Décrivez tous les éléments (paramètres, variables, etc.) qui vous semblent p
 \begin{figure}[htbp]
 \label{fig:act_communiquer}
 \begin{center}
-{\includegraphics[scale=.5]{./figures-pdf/act_communiquer}}
+{\includegraphics[scale=.4]{./figures/communiquer}}
 {\caption{Diagramme d'activité du thread {\tt th\_communiquer}}}
 \end{center}
 \end{figure}
@@ -244,8 +244,16 @@ Décrivez tous les éléments (paramètres, variables, etc.) qui vous semblent p
 \subsubsection{Diagrammes d'activité du groupe vision}
 {\color{blue}Décrivez le comportement de chacun de vos threads avec des diagrammes d'activité. Apportez les explications qui vous semblent nécessaires pour comprendre votre conception.}
 
+\begin{figure}[htbp]
+\label{fig:act_calibration}
+\begin{center}
+{\includegraphics[scale=.4]{./figures/calibration}}
+{\caption{Diagramme d'activité du thread {\tt th\_calibration}}}
+\end{center}
+\end{figure}
+\FloatBarrier
 
-
+\newpage
 
 %%%%%%%%%%%%%%%
 % ANALYSE ET VALIDATION
@@ -287,16 +295,14 @@ Nous avons donc un délai possible de l'ordre de 0.2+0.001+1+0.041 = 1.242~s ent
 % EXIGENCE 1
 \subsection{Exigence 1 : En cas de perte de communication entre le robot et le superviseur, le robot est stoppé et le nouvel état est signalé à l'utilisateur via le moniteur.}
 
-{\color{blue} Expliquez en vous appuyant sur votre conception comment vous garantissez que cette exigence est toujours respectée.}
-{\color{black} Watchdog + Compteur (variable globale)}
+{\color{black} Toutes les secondes, le superviseur envoie un ordre de rechargement du watchdog au robot pour éviter qu'il expire. Car si il expire, un compteur local au robot s'incrémente et lorsqu'il atteint 7, le robot s'arrête et doit être redémarré manuellement. 
 
 {\color{blue} Fournissez un chronogramme (ou un diagramme de séquence si vous préférez) avec l’ordonnancement de votre système et estimer la plus grande durée entre l'instant où la communication est perdue et l'instant où l'utilisateur en est informé.}
 
 % EXIGENCE 2
 \subsection{Exigence 2 : La communication entre le robot et le superviseur est déclarée perdue si et seulement si trois échecs successifs de communication entre le robot et le superviseur surviennent.}
 
-{\color{blue} Expliquez en vous appuyant sur votre conception comment vous pouvez garantir que cette exigence est toujours respectée.\\}
-{\color{black} Grace au compteur qui est une variable partagée enter les threads qui communiquent avec le robot. Il est incrémenté à chaque fois que le robot ne répond pas à une requête. Lorsqu'il atteint 3, on envoie un message au moniteur pour en informer l'utilisateur.}
+{\color{black} Quand le superviseur donne un ordre au robot, il répond en envoyant son status. Si le superviseur ne reçoit aucune réponse, un compteur global s'incrémente. S'il atteint 3, on déclare que la connexion est perdue et on en informe le moniteur via la file de messages. De même, si le robot ne répond à l'ordre de rechargement du watchdog, le compteur global, qui est partagé entre tous les threads qui communiquent avec le robot, s'incrémente. Si le robot répond, le compteur se remet à 0. }
 
 % EXIGENCE 3
 \subsection{Exigence 3 : 
@@ -317,23 +323,21 @@ L'image qui est  affichée sur le moniteur ne doit pas être plus vieille que 60
 \subsection{Thread}
 % INSTANCIATION THREAD
 \subsubsection{Instanciation et démarrage}
- {\color{blue} Expliquer comment vous implémentez sous Xenomai l'instanciation et le démarrage d'un  thread AADL.}
- 
-{\color{blue} {\bf Exemple de réponse} : Un thread AADL est instancié en C par une tâche ({\tt RT\_TASK}) Xenomai.  Pour cela, une structure {\tt RT\_TASK} est déclarée comme variable globale pour chaque tâche.
+{\color{black} Un thread AADL est instancié en C par une tâche ({\tt RT\_TASK}) Xenomai.  Pour cela, une structure {\tt RT\_TASK} est déclarée comme variable globale pour chaque tâche.
 
 Le service {\tt rt\_task\_create} est utilisé pour créer la tâche, c'est-à-dire réserver son space mémoire et la déclarer au noyau, et {\tt rt\_task\_start} pour lancer l'exécution de la tâche.}
 
 % CODE THREAD
 \subsubsection{Code à exécuter}
- {\color{blue} Comment se fait le lien sous Xenomai entre le thread et le traitement à exécuter.}
+ {\color{black} Sous Xenomai, le lien entre le thread et le traitement à exécuter se fait grâce à l'appel de la fonction {\tt rt\_task\_start} qui prend en argument une structure {\tt RT\_TASK} et le thread à exécuter. Par exemple pour lancer le thread connecter, on appelle la fonction de la manière suivante : {\tt rt\_task\_start}(\&tconnect, \&connecter, NULL).}
 
 % PRIORITE THREAD
 \subsubsection{Niveau de priorités}
- {\color{blue} Expliquer comment vous fixez sous Xenomai le niveau de priorité d'un thread AADL.}
+ {\color{black} Expliquer comment vous fixez sous Xenomai le niveau de priorité d'un thread AADL. On déclare d'abord en variable globale le niveau de priorité que l'on souhaite attribuer au thread, puis on donne ce niveau de priorité en argument lors de la création de ce thread avec le service {\tt rt\_task\_create}}. Exemple : {\tt rt\_task\_create}(\&tenvoyer, NULL, 0, PRIORITY\_TENVOYER, 0) où PRIORITY\_TENVOYER est un entier déclaré en variable globale. On affecte des entiers 10, 20, 30, 40, etc aux niveaux de priorité pour qu'en cas d'évolution de la spécification, l'impact soit moins lourd.}
 
 % PERIODICITE THREAD
 \subsubsection{Activation périodique}
- {\color{blue} Expliquer comment vous rendez périodique l'activation d'un thread AADL sous Xenomai.}
+ {\color{black} On rend périodique l'activation d'un thread AADL sous Xenomai grâce à deux fonctions : {\tt rt\_task\_set\_periodic} qui permet de fixer la période de la tâche et {\tt rt\_task\_wait\_period} qui permet de libérer le processeur quand la tâche a terminé son traitement et doit attendre la prochaine période.}
 
 % THREAD EVENEMENTIEL
 \subsubsection{Activation événementielle}
@@ -359,12 +363,11 @@ Le service {\tt rt\_task\_create} est utilisé pour créer la tâche, c'est-à-d
 
 % INSTANCIATION DONNEE PARTAGEE
 \subsubsection{Instanciation}
- {\color{blue} Quelle structure instancie une donnée partagée ?}
+ {\color{black} Pour instancier une donnée partagée, on déclare la donnée en global puis on crée un mutex associé à cette donnée grâce à la fonction {\tt rt\_mutex\_create} qui prend en argument une structure RT\_MUTEX. Cela permettra d'éviter l'accès simultané à la donnée partagée par plusieurs processus.}
 
 % LECTURE/ECRITURE DONNEE PARTAGEE
 \subsubsection{Accès en lecture et écriture}
- {\color{blue} Comment garantissez-vous sous Xenomai l'accès à une donnée partagéé ? \\}
- {\color{black} Utilisation de mutex avec RT\_MUTEX}
+ {\color{black} Pour accéder en lecture ou en écriture à une donnée partagée, il faut verrouiller le mutex associé à la donnée. Pour cela on appelle la fonction {\tt rt\_mutex\_acquire}. Pour relâcher la donnée, il faut déverrouiller le mutex associé grâce à la fonction {\tt rt\_mutex\_acquire}. }
 
 % PORT D'EVENEMENT-DONNEES
 \subsection{Ports d’événement-données}
