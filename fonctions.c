@@ -2,8 +2,7 @@
 
 int write_in_queue (RT_QUEUE * msgQueue, void *data, int size);
 
-void
-envoyer (void *arg)
+void envoyer (void *arg)
 {
   DMessage *msg;
   int err;
@@ -23,11 +22,10 @@ envoyer (void *arg)
 }
 
 
-void
-connecter (void *arg)
+void connecter (void *arg)
 {
   int status;
-  DMessage *message=d_new_message ();
+  DMessage *message;
 
   rt_printf ("tconnect : Debut de l'exécution de tconnect\n");
 
@@ -45,7 +43,7 @@ connecter (void *arg)
 	{
 	  status = robot->start_insecurely(robot);
 	  if (status == STATUS_OK){
-	    rt_printf("tconnect : Robot démarrer\n");
+	    rt_printf("tconnect : Robot démarrer, On lance le Watchdog\n");
 	    rt_sem_v(&semWatchdog);    
 	  }
 	}
@@ -66,7 +64,7 @@ connecter (void *arg)
 
 void communiquer (void *arg)
 {
-  DMessage *msg = d_new_message ();
+  DMessage *msg;
   int var1 = 1;
   int num_msg = 0;
 
@@ -92,33 +90,25 @@ void communiquer (void *arg)
 	    action->from_message (action, msg);
 	    switch (action->get_order (action)) {
 	    case ACTION_CONNECT_ROBOT:
-	      rt_printf ("tserver : Action connecter robot\n");
+	      rt_printf("tserver : Action connecter robot\n");
 	      rt_sem_v(&semConnecterRobot);
+	      rt_printf("tserver : Action connecter camera \n");
 	      rt_sem_v(&semConnecterCamera);
 	      break;
 	    case ACTION_FIND_ARENA:
-	      rt_printf ("tserver : Detect arena \n");
-	      rt_mutex_acquire (&mutexTypeCalibration, TM_INFINITE);
-	      typeCalibration = action->get_order (action);
-	      rt_mutex_release (&mutexTypeCalibration);
-	      rt_printf ("tsever : Action calibration Arene \n");
-	      fflush(stdout);
-	      rt_sem_v (&semCalibrationArene);
-	      break;
 	    case ACTION_ARENA_FAILED:
 	    case ACTION_ARENA_IS_FOUND:
-	      rt_printf ("tserver : Detect arena \n");
-	      rt_mutex_acquire (&mutexTypeCalibration, TM_INFINITE);
+	      rt_printf("tserver : Action detecter arene \n");
+	      rt_mutex_acquire(&mutexTypeCalibration, TM_INFINITE);
 	      typeCalibration = action->get_order (action);
 	      rt_mutex_release (&mutexTypeCalibration);
-	      rt_printf ("tsever : Action calibration Arene \n");
-	      rt_sem_v (&semCalibrationArene);
+	      rt_sem_v(&semCalibrationArene);
 	      break;
 	    case ACTION_COMPUTE_CONTINUOUSLY_POSITION:
+	      rt_printf ("tsever : Action calcul position \n");
 	      rt_mutex_acquire (&mutexCalculPosition, TM_INFINITE);
 	      calculPosition = 1;
 	      rt_mutex_release (&mutexCalculPosition);
-	      rt_printf ("tsever : Action calcul position \n");
 	      break;
 	    }
 	    break;
@@ -142,6 +132,7 @@ deplacer (void *arg)
   int droite;
   int compteur;
   DMessage *message;
+  
   rt_printf ("tmove : Debut de l'éxecution de periodique à 1s\n");
   rt_task_set_periodic (NULL, TM_NOW, 1000000000);
 
@@ -227,89 +218,10 @@ deplacer (void *arg)
     }
 }
 
-void calibrationArene (void *arg)
-{
-
-  DMessage *message;
-  int calibrage;
-  DArena *arene ;
-  DImage *frame ;
-  DJpegimage *jpeg ;
-  rt_task_set_periodic (NULL, TM_NOW, 650000000);
-  rt_printf ("tcalibrationArene : Debut de l'exécution de tcalibration\n");
-
-  while (1)
-    {
-      rt_printf("tcalibrationArene : Attente du sémarphore semCalibrationArene\n");
-      rt_sem_p (&semCalibrationArene, TM_INFINITE);
-      rt_printf("tcalibrationArene : Debut de la calibration\n");
-
-      rt_mutex_acquire (&mutexTypeCalibration, TM_INFINITE);
-      calibrage = typeCalibration;
-      rt_mutex_release (&mutexTypeCalibration);
-
-      switch (calibrage)
-	{
-	case 1:
-	  rt_mutex_acquire (&mutexCalibration, TM_INFINITE);
-	  calibration = 1;
-	  rt_mutex_release (&mutexCalibration);
-	  rt_task_wait_period (NULL);
-	  frame = d_new_image();
-	  d_camera_get_frame (camera, frame);
-	  arene = d_new_arena();
-	  arene = d_image_compute_arena_position (frame);
-	  d_imageshop_draw_arena (frame, arene);
-	  jpeg = d_new_jpegimage();
-	  d_jpegimage_compress (jpeg, frame);
-	  message = d_new_message();
-	  d_message_put_jpeg_image (message, jpeg);
-	  rt_printf ("tcalibrationArene : Envoi message\n");
-	  message->print (message, 100);
-
-	  if (write_in_queue (&queueMsgGUI, message, sizeof (DMessage)) < 0)
-	    {
-	      message->free (message);
-	    }
-	  break;
-	case 2:
-	  rt_mutex_acquire (&mutexCalibration, TM_INFINITE);
-	  calibration = 0;
-	  rt_mutex_release (&mutexCalibration);
-	  break;
-	case 3:
-	  rt_mutex_acquire (&mutexAreneSauvegarde, TM_INFINITE);
-	  areneSauvegarde = arene;
-	  rt_mutex_release (&mutexAreneSauvegarde);
-	  rt_mutex_acquire (&mutexCalibration, TM_INFINITE);
-	  calibration = 0;
-	  rt_mutex_release (&mutexCalibration);
-	  break;
-	}
-    }
-}
-
-int write_in_queue (RT_QUEUE * msgQueue, void *data, int size)
-{
-  void *msg;
-  int err;
-
-  msg = rt_queue_alloc (msgQueue, size);
-  memcpy (msg, &data, size);
-
-  if ((err = rt_queue_send (msgQueue, msg, sizeof (DMessage), Q_NORMAL)) < 0)
-    {
-      rt_printf ("Error msg queue send: %s\n", strerror (-err));
-    }
-  rt_queue_free (&queueMsgGUI, msg);
-
-  return err;
-}
-
 void etatBatterie(void *arg){
   
   int status = 1; 
-  DMessage *message = d_new_message();
+  DMessage *message;
   int *etatBat = malloc(sizeof(int));
     
   rt_printf("tBatterie : Debut de l'éxecution de periodique à 250ms\n");
@@ -319,6 +231,7 @@ void etatBatterie(void *arg){
     /* Attente de l'activation périodique */
     rt_printf("Batterie : Activation périodique \n");
     rt_task_wait_period(NULL);
+    
     rt_mutex_acquire(&mutexEtat, TM_INFINITE);
     status = etatCommRobot;
     rt_mutex_release(&mutexEtat);
@@ -326,11 +239,12 @@ void etatBatterie(void *arg){
     if (status == STATUS_OK) {
       status = d_robot_get_vbat(robot,etatBat);
       if(status == STATUS_OK){
-	rt_printf("tBatterie : On a l'etat de la batterie : %d\n",*etatBat);
 	d_battery_set_level(batterie,*etatBat);
+	
 	rt_mutex_acquire(&mutexCompteurRobot, TM_INFINITE);
 	compteurRobot=0;
 	rt_mutex_release(&mutexCompteurRobot);
+	
 	message = d_new_message();
 	d_message_put_battery_level(message,batterie);
 	d_server_send(serveur,message);
@@ -418,6 +332,7 @@ void traitementImage(void *arg){
 
   rt_printf("ttraitementImage : Debut de l'éxecution periodique à 600ms\n");
   rt_task_set_periodic(NULL, TM_NOW, 600000000);
+  
   /*Attente du sémaphore*/
   rt_printf("ttraitementImage : Attente du sémarphore semConnecterCamera\n");
   rt_sem_p(&semConnecterCamera, TM_INFINITE);
@@ -428,6 +343,7 @@ void traitementImage(void *arg){
     /* Attente de l'activation périodique */
     rt_task_wait_period(NULL);
     rt_printf("ttraitementImage  : Activation périodique\n");
+    
     frame = d_new_image();
     jpegimage = d_new_jpegimage();
     //if (status == STATUS_OK) {
@@ -442,7 +358,7 @@ void traitementImage(void *arg){
       d_camera_get_frame(camera, frame);
       if(status == 1) {
 	/*Calcul position*/
-	rt_printf("Calcul de la position \n");
+	rt_printf("ttraitementImage : Calcul de la position \n");
 	arene = d_new_arena();
 	rt_mutex_acquire(&mutexAreneSauvegarde, TM_INFINITE);
 	arene = areneSauvegarde;
@@ -474,3 +390,93 @@ void traitementImage(void *arg){
     }
   }
 }
+
+
+void calibrationArene (void *arg)
+{
+
+  DMessage *message;
+  int calibrage;
+  DArena *arene ;
+  DImage *frame ;
+  DJpegimage *jpeg ;
+  rt_task_set_periodic (NULL, TM_NOW, 650000000);
+  rt_printf ("tcalibrationArene : Debut de l'exécution de tcalibration\n");
+
+  while (1)
+    {
+      rt_printf("tcalibrationArene : Attente du sémarphore semCalibrationArene\n");
+      rt_sem_p (&semCalibrationArene, TM_INFINITE);
+      rt_printf("tcalibrationArene : Debut de la calibration\n");
+
+      rt_mutex_acquire (&mutexTypeCalibration, TM_INFINITE);
+      calibrage = typeCalibration;
+      rt_mutex_release (&mutexTypeCalibration);
+
+      switch (calibrage)
+	{
+	  /* Detecter Arene */
+	case 1:
+	  rt_mutex_acquire (&mutexCalibration, TM_INFINITE);
+	  calibration = 1;
+	  rt_mutex_release (&mutexCalibration);
+	  rt_task_wait_period (NULL); //Attente 650ms, le temps que traitement image ait fini dans le pire des cas
+	  
+	  frame = d_new_image();
+	  d_camera_get_frame (camera, frame);
+	  arene = d_new_arena();
+	  arene = d_image_compute_arena_position (frame);
+	  d_imageshop_draw_arena (frame, arene);
+	  jpeg = d_new_jpegimage();
+	  d_jpegimage_compress (jpeg, frame);
+	  message = d_new_message();
+	  d_message_put_jpeg_image (message, jpeg);
+	  rt_printf ("tcalibrationArene : Envoi message\n");
+	  message->print (message, 100);
+
+	  if (write_in_queue (&queueMsgGUI, message, sizeof (DMessage)) < 0)
+	    {
+	      message->free (message);
+	    }
+	  break;
+	  /* Action Arena Failed */
+	case 2:
+	  rt_mutex_acquire (&mutexCalibration, TM_INFINITE);
+	  calibration = 0;
+	  rt_mutex_release (&mutexCalibration);
+	  break;
+	  /* Action Arena Ok */
+	case 3:
+	  rt_mutex_acquire (&mutexAreneSauvegarde, TM_INFINITE);
+	  areneSauvegarde = arene;
+	  rt_mutex_release (&mutexAreneSauvegarde);
+	  rt_mutex_acquire (&mutexCalibration, TM_INFINITE);
+	  calibration = 0;
+	  rt_mutex_release (&mutexCalibration);
+	  break;
+	}
+    }
+}
+
+int write_in_queue (RT_QUEUE * msgQueue, void *data, int size)
+{
+  void *msg;
+  int err;
+
+  msg = rt_queue_alloc (msgQueue, size);
+  memcpy (msg, &data, size);
+
+  if ((err = rt_queue_send (msgQueue, msg, sizeof (DMessage), Q_NORMAL)) < 0)
+    {
+      rt_printf ("Error msg queue send: %s\n", strerror (-err));
+    }
+  rt_queue_free (&queueMsgGUI, msg);
+
+  return err;
+}
+
+
+
+
+
+
