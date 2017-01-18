@@ -166,9 +166,9 @@ Décrivez tous les éléments (paramètres, variables, etc.) qui vous semblent p
 \bf Nom du thread &	\bf Rôle &	\bf Priorité \\
 \hline
 \hline
-\color{black}thCommuniquer	& \color{black}Prend en charge les messages entrants depuis le moniteur & \color{black}25\\
+\color{black}thCommuniquer	& \color{black}Prend en charge les messages entrants depuis le moniteur & \color{black}50\\
 \hline
-\color{black}thEnvoyer	& \color{black}Envoi l'ensemble des messages du superviseur au moniteur & \color{black}30\\
+\color{black}thEnvoyer	& \color{black}Envoi l'ensemble des messages du superviseur au moniteur & \color{black}55\\
 \hline
 \color{black}... &	\color{black}... &	\color{black}...\\
 \hline
@@ -219,13 +219,13 @@ Décrivez tous les éléments (paramètres, variables, etc.) qui vous semblent p
 \bf Nom du thread &	\bf Rôle &	\bf Priorité \\
 \hline
 \hline
-\color{black}thConnecter &	\color{black}Ouvre la communication avec le robot &	\color{black}...\\
+\color{black}thConnecter &	\color{black}Ouvre la communication avec le robot &	\color{black}50\\
 \hline
-\color{black}thReloadWatchdog &	\color{black}Surveille la perte de communication entre le robot et le superviseur &	\color{black}(forte priorité)\\
+\color{black}thReloadWatchdog &	\color{black}Surveille la perte de communication entre le robot et le superviseur &	\color{black}45\\
 \hline
-\color{black}thDeplacer &	\color{black}Envoi des ordres de déplacement au robot &	\color{black}...\\
+\color{black}thDeplacer &	\color{black}Envoi des ordres de déplacement au robot &	\color{black}40\\
 \hline
-\color{black}thEtatBatterie &	\color{black}Surveille l'état de la batterie du robot et l'envoi au moniteur via le thread thEnvoyer &	\color{black}...\\
+\color{black}thEtatBatterie &	\color{black}Surveille l'état de la batterie du robot et l'envoi au moniteur via le thread thEnvoyer &	\color{black}10\\
 \hline
 \end{tabular}
 \end{center}
@@ -285,9 +285,9 @@ Décrivez tous les éléments (paramètres, variables, etc.) qui vous semblent p
 \bf Nom du thread &	\bf Rôle &	\bf Priorité \\
 \hline
 \hline
-\color{black}thTraitementImage &	\color{black}Capture une image, si l'utilisateur souhaite la position du robot, il la dessine sur cette image, compresse l'image et l'envoi en message. Si il ne veux pas la position il compresse l'image puis l'envoi en message. Il ne peut pas s'exécuter si il y a une calibration. &	\color{blue}...\\
+\color{black}thTraitementImage &	\color{black}Capture une image, si l'utilisateur souhaite la position du robot, il la dessine sur cette image, compresse l'image et l'envoi en message. Si il ne veux pas la position il compresse l'image puis l'envoi en message. Il ne peut pas s'exécuter si il y a une calibration. &	\color{blue}30\\
 \hline
-\color{black}thCalibration &	\color{black}Détection de l'arène, l'utilisateur doit valider la calibration ou redemander une détection &	\color{blue}...\\
+\color{black}thCalibration &	\color{black}Détection de l'arène, l'utilisateur doit valider la calibration ou redemander une détection &	\color{blue}35\\
 \hline
 \end{tabular}
 \end{center}
@@ -366,7 +366,7 @@ Nous avons donc un délai possible de l'ordre de 0.2+0.001+1+0.041 = 1.242~s ent
 % EXIGENCE 2
 \subsection{Exigence 2 : La communication entre le robot et le superviseur est déclarée perdue si et seulement si trois échecs successifs de communication entre le robot et le superviseur surviennent.}
 
-{\color{black} Quand le superviseur donne un ordre au robot, il répond en envoyant son status. Si le superviseur ne reçoit aucune réponse, un compteur global s'incrémente. S'il atteint 3, on déclare que la connexion est perdue et on en informe le moniteur via la file de messages. De même, si le robot ne répond à l'ordre de rechargement du watchdog, le compteur global, qui est partagé entre tous les threads qui communiquent avec le robot, s'incrémente. Si le robot répond, le compteur se remet à 0. }
+{\color{black} Quand le superviseur donne un ordre au robot, il répond en envoyant son status. Si le superviseur ne reçoit aucune réponse, un compteur global s'incrémente. S'il atteint 3, on déclare que la connexion est perdue et on en informe le moniteur via la file de messages. De même, si le robot ne répond pas à l'ordre de rechargement du watchdog ou à l'ordre de réception du nouveau niveau de la batterie, le compteur global, qui est partagé entre tous les threads qui communiquent avec le robot, s'incrémente. Si le robot répond, le compteur se remet à 0. }
 
 % EXIGENCE 3
 \subsection{Exigence 3 : 
@@ -406,6 +406,7 @@ Le service {\tt rt\_task\_create} est utilisé pour créer la tâche, c'est-à-d
 % THREAD EVENEMENTIEL
 \subsubsection{Activation événementielle}
  {\color{blue} Expliquer les moyens mis en {\oe}uvre dans l'implémentation sous Xenomai pour gérer les activations événementielles d'un thread AADL.}
+\\Les moyens mis en {\oe}uvre sont : les sémaphores.
 
 % PORT D'EVENEMENT
 \subsection{Port d’événement}
@@ -413,14 +414,17 @@ Le service {\tt rt\_task\_create} est utilisé pour créer la tâche, c'est-à-d
 % INSTANCIATION PORT D'EVENEMENT
 \subsubsection{Instanciation}
  {\color{blue} Comment avez-vous instancié un port d'événement ?}
+\\On instancie les sémaphores à la valeur 0 dans le main.c grâce à la fonction rt\_sem\_create(\&semEvent..,0,..) et en déclarant en extern dans le global.h la sémaphore : extern RT\_SEM semEvent et dans le global.c RT\_SEM semEvent.
 
 % ENVOI PORT D'EVENEMENT
 \subsubsection{Envoi d’un événement}
  {\color{blue} Quels services ont été employés pour envoyer un événement ?}
+\\Pour envoyer un événement on libère le sémaphore associé à un l'événement en incrémentant sa valeur de 1 grâce à la fonction rt\_sem\_v(\&semEvent, INFINITE). 
 
 % RECEPTION PORT D'EVENEMENT
 \subsubsection{Réception d’un événement}
  {\color{blue} Comment se fait la synchronisation sur événement ?}
+\\La synchronisation sur un événement se fait avec l'acquisition de la sémaphore de l'événement qui décrémente sa valeur de 1 grâce à la fonction rt\_sem\_p(\&semEvent).
 
 % DONNEE PARTAGEE
 \subsection{Donnée partagée}
@@ -439,14 +443,17 @@ Le service {\tt rt\_task\_create} est utilisé pour créer la tâche, c'est-à-d
 % INSTANCIATION PORT D'EVENEMENT-DONNEES
 \subsubsection{Instanciation}
  {\color{blue} Donnez la solution retenue pour implémenter un port d'événement-données avec Xenomai.}
+\\L'instanciation des ports d'événement-données avec Xenomai est faite grâce à l'instantciation de la structure serveur (Pas sur.. ? ) 
 
 % ENVOI PORT D'EVENEMENT-DONNEES
 \subsubsection{Envoi d’une donnée}
  {\color{blue} Quels services avez-vous employés pour envoyer des données ?}
+\\Pour envoyer des données on appelle la fonction appartenant à la structure serveur qui a déjà été implémentée : {server->send(serveur,msg)}
 
 % RECEPTION PORT D'EVENEMENT-DONNEES
 \subsubsection{Réception d’une donnée}
  {\color{blue} Quels services avez-vous employé pour recevoir des données ?}
+\\Pareil grâce à la fonction receive de la structure server : server->receive(server,msg)
 
 %%%%%%%%%%%%%%%%%%%%
 % EXEMPLE DE TRANSFORMATION
