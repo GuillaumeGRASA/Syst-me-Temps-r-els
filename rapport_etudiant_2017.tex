@@ -537,8 +537,6 @@ void th_capture (void *arg)
     {
         image_capturee = d_new_image();
         image_capturee = acquisition_image(image);
-        rt_sem_v(&semImageCapturee, TM_INFINITE); //synchronisation avec le thread th_display, image_capturee !
-
 
         jpegimage = d_new_jpegimage();
         d_jpegimage_compress(jpegimage,frame);
@@ -568,8 +566,6 @@ void th_display (void *arg)
 
   while (1)
     {
-        rt_sem_p(&semImageCapturee, TM_INFINITE); //synchronisation avec le thread th_capture, image_capturee ?
-
         if ((err = rt_queue_read (&queueMsgGUI, &image_capturee, sizeof (DMessage), TM_INFINITE)) >= 0) {
 
             rt_mutex_acquire (&mutexOSD, TM_INFINITE); //osd_var := Read_data(osd)
@@ -607,9 +603,7 @@ extern RT_TASK th_capture;
 
  /* @descripteurs des sempahore */
  extern RT_SEM semDemarrage;
- extern RT_SEM semImageCapturee;
-
-
+ 
  /* @descripteurs des files de messages */
  extern RT_QUEUE queueMsgGUI;
 
@@ -643,8 +637,7 @@ extern RT_TASK th_capture;
  RT_MUTEX mutexBufferEcran;
 
  RT_SEM semDemarrage;
- RT_SEM semImageCapturee;
-
+ 
  RT_QUEUE queueMsgGUI;
 
 
@@ -688,11 +681,7 @@ void initStruct(void) {
         exit(EXIT_FAILURE);
     }
 
-    if (err = rt_sem_create(&semImageCapturee, NULL, 0, S_FIFO)) {
-        rt_printf("Error semaphore create: %s\n", strerror(-err));
-        exit(EXIT_FAILURE);
-    }
-
+    
     /* Creation des taches */
     if (err = rt_task_create(&tth_controler, NULL, 0, PRIORITY_THCONTROLER, 0)) {
         rt_printf("Error task create: %s\n", strerror(-err));
