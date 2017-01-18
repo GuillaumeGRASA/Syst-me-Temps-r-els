@@ -537,8 +537,6 @@ void th_capture (void *arg)
     {
         image_capturee = d_new_image();
         image_capturee = acquisition_image(image);
-        rt_sem_v(&semImageCapturee, TM_INFINITE); //synchronisation avec le thread th_display, image_capturee !
-
 
         jpegimage = d_new_jpegimage();
         d_jpegimage_compress(jpegimage,frame);
@@ -568,8 +566,6 @@ void th_display (void *arg)
 
   while (1)
     {
-        rt_sem_p(&semImageCapturee, TM_INFINITE); //synchronisation avec le thread th_capture, image_capturee ?
-
         if ((err = rt_queue_read (&queueMsgGUI, &image_capturee, sizeof (DMessage), TM_INFINITE)) >= 0) {
 
             rt_mutex_acquire (&mutexOSD, TM_INFINITE); //osd_var := Read_data(osd)
