@@ -12,6 +12,7 @@
 \usepackage{amstext}
 \usepackage{amsmath}
 
+\usepackage{verbatim}
 
 \usepackage{placeins}
 
@@ -93,7 +94,7 @@ Si vous le souhaitez, au lieu de dessiner vos diagrammes sous un éditeur, vous 
 \begin{figure}[htbp]
 \label{fig:diag_fonc_gen}
 \begin{center}
-{\includegraphics[scale=.5]{./figures-pdf/diag_fonc_gen}}
+{\includegraphics[scale=.4]{./figures/grosdiagramme}}
 {\caption{Diagramme fonctionnel du système}}
 \end{center}
 \end{figure}
@@ -180,7 +181,7 @@ Décrivez tous les éléments (paramètres, variables, etc.) qui vous semblent p
 
 % DESCRIPTION THREADS GT ROBOT
 \subsubsection{Description des threads du groupe gestion robot}
-{\color{red} Remplissez le tableau ci-dessous pour expliquer le rôle de chaque thread et donner son niveau de priorité.}
+
 
 
 \begin{table}[htp]
@@ -207,7 +208,34 @@ Décrivez tous les éléments (paramètres, variables, etc.) qui vous semblent p
 
 % DIAGRAMMES D'ACTIVITE GT ROBOT
 \subsubsection{Diagrammes d'activité du groupe robot}
-{\color{blue}Décrivez le comportement de chacun de vos threads avec des diagrammes d'activité. Apportez les explications qui vous semblent nécessaires pour comprendre votre conception.}
+
+\begin{figure}[htbp]
+\label{fig:act_communiquer}
+\begin{center}
+{\includegraphics[scale=.4]{./figures/watchdog}}
+{\caption{Diagramme d'activité du thread thReloadWatchdog}}
+\end{center}
+\end{figure}
+{\color{black}On attend que le robot soit connecté pour lui envoyer l'ordre de rechargement du watchdog.}
+
+\begin{figure}[htbp]
+\label{fig:act_communiquer}
+\begin{center}
+{\includegraphics[scale=.4]{./figures/etat_batterie}}
+{\caption{Diagramme d'activité du thread thEtatBatterie}}
+\end{center}
+\end{figure}
+\FloatBarrier
+
+\begin{figure}[htbp]
+\label{fig:act_communiquer}
+\begin{center}
+{\includegraphics[scale=.4]{./figures/deplacer}}
+{\caption{Diagramme d'activité du thread thDeplacer}}
+\end{center}
+\end{figure}
+\FloatBarrier
+
 
 % DIAGRAMME FONCTIONNEL GT VISION
 \subsection{Groupe de threads vision}
@@ -248,7 +276,16 @@ Décrivez tous les éléments (paramètres, variables, etc.) qui vous semblent p
 \label{fig:act_calibration}
 \begin{center}
 {\includegraphics[scale=.4]{./figures/calibration}}
-{\caption{Diagramme d'activité du thread {\tt th\_calibration}}}
+{\caption{Diagramme d'activité du thread {\tt thCalibration}}}
+\end{center}
+\end{figure}
+\FloatBarrier
+
+\begin{figure}[htbp]
+\label{fig:act_calibration}
+\begin{center}
+{\includegraphics[scale=.4]{./figures/traitement_image}}
+{\caption{Diagramme d'activité du thread {\tt thTraitementImage}}}
 \end{center}
 \end{figure}
 \FloatBarrier
@@ -498,6 +535,11 @@ Thread & Priorité \\
 \end{tabular}
 \end{center}
 \end{table}%\\
+
+
+
+
+
 
 
 \end{document}
