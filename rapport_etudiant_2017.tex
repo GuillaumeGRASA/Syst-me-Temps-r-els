@@ -12,8 +12,35 @@
 \usepackage{amstext}
 \usepackage{amsmath}
 
-\usepackage{verbatim}
-
+\usepackage{listings}
+\usepackage{color}
+\lstset{ %
+  backgroundcolor=\color{white},   % choose the background color; you must add \usepackage{color} or \usepackage{xcolor}; should come as last argument
+  basicstyle=\footnotesize,        % the size of the fonts that are used for the code
+  breakatwhitespace=false,         % sets if automatic breaks should only happen at whitespace
+  breaklines=true,                 % sets automatic line breaking
+  captionpos=b,                    % sets the caption-position to bottom
+  commentstyle=\color{cyan},    % comment style
+  deletekeywords={...},            % if you want to delete keywords from the given language
+  escapeinside={\%*}{*)},          % if you want to add LaTeX within your code
+  extendedchars=true,              % lets you use non-ASCII characters; for 8-bits encodings only, does not work with UTF-8
+  frame=single,	                   % adds a frame around the code
+  keepspaces=true,                 % keeps spaces in text, useful for keeping indentation of code (possibly needs columns=flexible)
+  keywordstyle=\color{blue},       % keyword style
+  language=Octave,                 % the language of the code
+  morekeywords={*,...},           % if you want to add more keywords to the set
+  numbers=left,                    % where to put the line-numbers; possible values are (none, left, right)
+  numbersep=5pt,                   % how far the line-numbers are from the code
+  numberstyle=\tiny\color{magenta}, % the style that is used for the line-numbers
+  rulecolor=\color{black},         % if not set, the frame-color may be changed on line-breaks within not-black text (e.g. comments (green here))
+  showspaces=false,                % show spaces everywhere adding particular underscores; it overrides 'showstringspaces'
+  showstringspaces=false,          % underline spaces within strings only
+  showtabs=false,                  % show tabs within strings adding particular underscores
+  stepnumber=2,                    % the step between two line-numbers. If it's 1, each line will be numbered
+  stringstyle=\color{red},     % string literal style
+  tabsize=2,	                   % sets default tabsize to 2 spaces
+  title=\lstname                   % show the filename of files included with \lstinputlisting; also try caption instead of title
+}
 \usepackage{placeins}
 
 
@@ -435,106 +462,279 @@ Ne mettez pas vos fichiers d'en-tête (sauf des extraits importants si nécessai
 % EXEMPLE A TRADUIRE
 \newpage
 \appendix
-{\color{red}
-\begin{framed}
-\begin{center}{\bf\Large Supprimer la partie suivante du rapport final } \end{center}
-\end{framed}
-}
-
 \section{Cas d'étude à traduire}
 \label{ann:conception}
-
-L'application est un démonstration réalisée par Texas Instrument pour son système DaVinci. Ce système est dédié aux applications multimédia (vidéo, audio, etc.) et est fourni avec un BSP basé sur Linux. Il équipe des audiophones, des systèmes de surveillance, des équipements médicaux, etc.
-
-Le diagramme~\ref{fig:vue_gen} représente le système DaVinci et l'ensemble des éléments avec lesquels il est connecté.
-
-\begin{figure}[htp]
-\begin{center}
-\includegraphics[scale=.6]{figures-pdf/contexte.pdf}
-\caption{Vue générale du système}
-\label{fig:vue_gen}
-\end{center}
-\end{figure}
-
-
-Les différents éléments du diagramme sont :
 \begin{itemize}
-\item Une télécommande infrarouge qui écrit dans la zone mémoire tampon {\tt commande} les commandes émises. Cette zone est accessible en lecture depuis l'application.
-\item Une caméra qui produit des données et un signal {\tt image} quand une image est disponible.
-\item Un écran pour afficher les images capturées et les informations sur le système. L'affichage est mis à jour en écrivant dans le buffer de l'écran ({\tt buffer écran}). Les données contenues dans {\tt OSD buffer} sont des informations permettant d'afficher les menus à l'écran.
+\item \large{\bf fonctions.c}
+
+\lstset{language=C} 
+\begin{lstlisting}
+
+void th_controler (void *arg)
+{
+
+  int new_osd;
+  int nouvelle_commande;
+
+  rt_printf ("th_controler :  initialisation du systeme\n");
+  initialiser_le_systeme();
+
+  t_printf("th_controler : Demarrage des threads\n");   //On donne suffisament de ressources pour que les 2 autres threads puissent demarrer
+
+  rt_sem_v(&semDemarrage, TM_INFINITE);
+  rt_sem_v(&semDemarrage, TM_INFINITE);
+
+  rt_printf("th_controler : Debut de l'execution de periodique a 80s\n");
+  rt_task_set_periodic(NULL, TM_NOW, 80000000000);
+
+
+  while (1)
+    {
+
+    rt_mutex_acquire (&mutexCommande, TM_INFINITE); //lecture de la nouvelle commande
+    nouvelle_commande = commande;
+    rt_mutex_release (&mutexCommande);
+
+    new_osd = calcul_osd(nouvelle_commande); //calcul du nouvel OSD
+
+    rt_mutex_acquire (&mutexOSDBuff, TM_INFINITE); //modification de OSD Buffer
+    osdBuffer = new_osd;
+    rt_mutex_release (&mutexOSDBuff);
+
+    rt_mutex_acquire (&mutexOSD, TM_INFINITE); //modification de OSD
+    osd = new_osd;
+    rt_mutex_release (&mutexOSD);
+
+    rt_task_wait_period(NULL);
+    rt_printf("th_controler  : Activation periodique\n");
+
+	 }
+}
+
+
+void th_capture (void *arg)
+{
+
+  DImage *image_capturee;
+  DMessage *message;
+  DJpegimage *jpegimage;
+
+
+  rt_printf ("th_capture :  en attente de demarrage\n");
+  rt_sem_p(&semDemarrage, TM_INFINITE);
+
+  rt_printf("th_capture : Demarrage Succes\n");
+
+
+  while (1)
+    {
+        image_capturee = d_new_image();
+        image_capturee = acquisition_image(image);
+        rt_sem_v(&semImageCapturee, TM_INFINITE); //synchronisation avec le thread th_display, image_capturee !
+
+
+        jpegimage = d_new_jpegimage();
+        d_jpegimage_compress(jpegimage,frame);
+        message = d_new_message();
+        d_message_put_jpeg_image(message,jpegimage);
+
+        rt_printf("th_capture  : Envoie de l'image capturee \n");
+        if (write_in_queue(&queueMsgGUI, message, sizeof (DMessage)) < 0) {message->free(message);}
+
+    }
+}
+
+
+void th_display (void *arg)
+{
+
+  DImage *image_capturee;
+  DMessage *message;
+  DJpegimage *jpegimage;
+
+
+  rt_printf ("th_display :  en attente de demarrage\n");
+  rt_sem_p(&semDemarrage, TM_INFINITE);
+
+  rt_printf("th_display : Demarrage Succes\n");
+
+
+  while (1)
+    {
+        rt_sem_p(&semImageCapturee, TM_INFINITE); //synchronisation avec le thread th_capture, image_capturee ?
+
+        if ((err = rt_queue_read (&queueMsgGUI, &image_capturee, sizeof (DMessage), TM_INFINITE)) >= 0) {
+
+            rt_mutex_acquire (&mutexOSD, TM_INFINITE); //osd_var := Read_data(osd)
+            osd_var = osd;
+            rt_mutex_release (&mutexOSD);
+
+            img = encode(image_capturee, osd_var);
+
+            rt_mutex_acquire (&mutexBufferEcran, TM_INFINITE); //osd_var := Read_data(osd)
+            buffer_ecran = img;
+            rt_mutex_release (&mutexBufferEcran);
+      }
+      else  {rt_printf ("th_display : Error msg queue write: %s\n", strerror (-err));}
+
+    }
+}
+
+\end{lstlisting}
+
+\item \large{\bf global.h}
+
+\lstset{language=C} 
+\begin{lstlisting}
+extern RT_TASK th_controler;
+extern RT_TASK th_display;
+extern RT_TASK th_capture;
+
+
+ /* @descripteurs des mutex */
+ extern RT_MUTEX mutexCommande;
+ extern RT_MUTEX mutexOSDBuff;
+ extern RT_MUTEX mutexOSD;
+ extern RT_MUTEX mutexBufferEcran;
+
+
+ /* @descripteurs des sempahore */
+ extern RT_SEM semDemarrage;
+ extern RT_SEM semImageCapturee;
+
+
+ /* @descripteurs des files de messages */
+ extern RT_QUEUE queueMsgGUI;
+
+
+ /* @variables partagees */
+ extern int osdbuffer;
+ extern int osd;
+ extern int commande;
+ extern int buffer_ecran;
+
+
+ /* @constantes */
+ extern int MSG_QUEUE_SIZE;
+ extern int PRIORITY_THCONTROLER;
+ extern int PRIORITY_THCAPTURE;
+ extern int PRIORITY_THDISPLAY;
+\end{lstlisting}
+
+
+\item \large{\bf global.c}
+
+\lstset{language=C} 
+\begin{lstlisting}
+ RT_TASK th_controler;
+ RT_TASK th_display;
+ RT_TASK th_capture;
+
+ RT_MUTEX mutexCommande;
+ RT_MUTEX mutexOSDBuff;
+ RT_MUTEX mutexOSD;
+ RT_MUTEX mutexBufferEcran;
+
+ RT_SEM semDemarrage;
+ RT_SEM semImageCapturee;
+
+ RT_QUEUE queueMsgGUI;
+
+
+  int MSG_QUEUE_SIZE = 10;
+
+  int PRIORITY_THCONTROLER = 60;
+  int PRIORITY_THDISPLAY = 70;
+  int PRIORITY_THCAPTURE = 80
+\end{lstlisting}
+
+\item \large{\bf main.c}
+
+\lstset{language=C} 
+\begin{lstlisting}
+void initStruct(void) {
+    int err;
+    /* Creation des mutex */
+    if (err = rt_mutex_create(&mutexOSDBuff, NULL)) {
+        rt_printf("Error mutex create: %s\n", strerror(-err));
+        exit(EXIT_FAILURE);
+    }
+    if (err = rt_mutex_create(&mutexOSD, NULL)) {
+        rt_printf("Error mutex create: %s\n", strerror(-err));
+        exit(EXIT_FAILURE);
+    }
+
+    if (err = rt_mutex_create(&mutexCommande, NULL)) {
+        rt_printf("Error mutex create: %s\n", strerror(-err));
+        exit(EXIT_FAILURE);
+    }
+
+    if (err = rt_mutex_create(&mutexCommande, NULL)) {
+        rt_printf("Error mutex create: %s\n", strerror(-err));
+        exit(EXIT_FAILURE);
+    }
+
+
+    /* Creation du semaphore */
+    if (err = rt_sem_create(&semDemarrage, NULL, 0, S_FIFO)) {
+        rt_printf("Error semaphore create: %s\n", strerror(-err));
+        exit(EXIT_FAILURE);
+    }
+
+    if (err = rt_sem_create(&semImageCapturee, NULL, 0, S_FIFO)) {
+        rt_printf("Error semaphore create: %s\n", strerror(-err));
+        exit(EXIT_FAILURE);
+    }
+
+    /* Creation des taches */
+    if (err = rt_task_create(&tth_controler, NULL, 0, PRIORITY_THCONTROLER, 0)) {
+        rt_printf("Error task create: %s\n", strerror(-err));
+        exit(EXIT_FAILURE);
+    }
+    if (err = rt_task_create(&tth_capture, NULL, 0, PRIORITY_THCAPTURE, 0)) {
+        rt_printf("Error task create: %s\n", strerror(-err));
+        exit(EXIT_FAILURE);
+    }
+    if (err = rt_task_create(&tth_display, NULL, 0, PRIORITY_THDISPLAY, 0)) {
+        rt_printf("Error task create: %s\n", strerror(-err));
+        exit(EXIT_FAILURE);
+    }
+
+
+    /* Creation des files de messages */
+    if (err = rt_queue_create(&queueMsgGUI, "toto", MSG_QUEUE_SIZE*sizeof(DMessage), MSG_QUEUE_SIZE, Q_FIFO)){
+        rt_printf("Error msg queue create: %s\n", strerror(-err));
+        exit(EXIT_FAILURE);
+    }
+
+}
+
+void startTasks() {
+    int err;
+    if (err = rt_task_start(&tth_controler, &th_controler, NULL)) {
+        rt_printf("Error task start: %s\n", strerror(-err));
+        exit(EXIT_FAILURE);
+    }
+    if (err = rt_task_start(&tth_capture, &th_capture, NULL)) {
+        rt_printf("Error task start: %s\n", strerror(-err));
+        exit(EXIT_FAILURE);
+    }
+    if (err = rt_task_start(&tth_display, &th_display, NULL)) {
+        rt_printf("Error task start: %s\n", strerror(-err));
+        exit(EXIT_FAILURE);
+    }
+
+}
+
+void deleteTasks() {
+    rt_task_delete(&tth_controler);
+    rt_task_delete(&tth_capture);
+    rt_task_delete(&tth_display);
+}
+\end{lstlisting}
 \end{itemize}
 
-\subsection{Description de l'application de démonstration}
 
-Le diagramme~\ref{fig:diag_fonc} fournit la description de l'application de démonstration de décodage vidéo de Texas Instrument.
-
-\begin{figure}[htbp]
-\begin{center}
-\includegraphics[scale=.45]{./figures-pdf/diag_fonc.pdf}
-\caption{Diagramme fonctionnel de l'application}
-\label{fig:diag_fonc}
-\end{center}
-\end{figure}
-\FloatBarrier
-
-\subsubsection{Description du thread th\_controler}
-
-Le thread {\tt th\_controler} (figure~\ref{fig:th_controler}) initialise le système, synchronise toutes les tâches, puis lit les informations en provenance de la télécommande et met à jour le menu sur l'écran ainsi que les données de configuration représentées par {\tt OSD}.\\
-Pour cela deux fonctions sont utilisées : {\tt initialiser\_le\_système} et {\tt calcul\_osd}.
-
-\begin{figure}[htbp]
-\label{fig:th_controler}
-\begin{center}
-\parbox{9cm}{\includegraphics[scale=.5]{./figures-pdf/th_controler.pdf}}\parbox{5cm}{\caption{Diagramme d'activité du thread th\_controler}}
-\end{center}
-\end{figure}
-\FloatBarrier
-
-
-\subsubsection{Description du thread th\_capture}
-
-Le thread {\tt th\_capture} (figure~\ref{fig:th_capture}) fait l'acquisition d'une image quand elle est disponible et la met dans une file de message.\\
-La fonction {\tt acquistion\_image} est une fonction bloquante sur le port {\tt image} et retourne la valeur du port quand l'évènement se produit. En conséquence, vous n'avez pas à utiliser de service pour gérer le port de donnée-événement {\tt image}, la fonction {\tt acquistion\_image} fait le travail.
-
-\begin{figure}[htbp]
-\label{fig:th_capture}
-\begin{center}
-\parbox{9cm}{\includegraphics[scale=.5]{./figures-pdf/th_capture.pdf}}\parbox{5cm}{\caption{Diagramme d'activité du thread th\_capture}}
-\end{center}
-\end{figure}
-\FloatBarrier
-
-\subsubsection{Description du thread th\_display}
-
-Le thread th\_display (figure~\ref{fig:th_display}) met à jour le buffer de l'écran en fonction des paramètres contenu dans la données OSD. Pour cela la fonction {\tt encode} est utilisée.
-
-\begin{figure}[htbp]
-\label{fig:th_display}
-\begin{center}
-\parbox{9cm}{\includegraphics[scale=.5]{./figures-pdf/th_video.pdf}}\parbox{5cm}{\caption{Diagramme d'activité du thread th\_display}}
-\end{center}
-\end{figure}
-\FloatBarrier
-
-\subsection{Priorités}
-
-Les priorités des threads sont fixées (plus la priorité est élevée plus la tâche est prioritaire) :
-
-\begin{table}[ht]
-\begin{center}
-\begin{tabular}{|c|c|}
-\hline
-Thread & Priorité \\
-\hline
-{\tt th\_controler} & 60\\
-\hline
-{\tt th\_capture} & 80\\
-\hline
-{\tt th\_display} & 70\\
-\hline
-\end{tabular}
-\end{center}
-\end{table}%\\
 
 
 
